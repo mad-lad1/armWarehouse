@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package format="2">
+	<name>placebot_gazebo</name>
+	<version>1.0.0</version>
+	<description>
+		Used to simulate placebot in gazebo
+	</description>
+	<author email="ahm43@mail.aub.edu">Ali Mantash</author>
+	<maintainer email="ahm43@mail.aub.edu">Ali Mantash</maintainer>
+	<license>TODO</license>
+
+	<buildtool_depend>catkin</buildtool_depend>
+	<exec_depend>geometry_msgs</exec_depend>
+	<exec_depend>placebot_description</exec_depend>
+	<exec_depend>controller_manager</exec_depend>
+	<exec_depend>controller_manager_msgs</exec_depend>
+	<exec_depend>effort_controllers</exec_depend>
+	<exec_depend>gazebo_ros</exec_depend>
+	<exec_depend>joint_state_controller</exec_depend>
+	<exec_depend>rospy</exec_depend>
+	<exec_depend>std_msgs</exec_depend>
+	<exec_depend>tf</exec_depend>
+	<exec_depend>tf2</exec_depend>
+	<depend>move_base</depend>
+	<depend>gmapping</depend>
+	<depend>map_server</depend>
+	
+</package>

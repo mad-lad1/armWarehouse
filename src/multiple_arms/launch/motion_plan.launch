@@ -1,0 +1,34 @@
+<launch>
+
+<group ns="arm1">
+<node name="ur5_vision" pkg="ur5_notebook" type="ur5_vision_for_loading.py" output="screen" /> 
+<node name="ur5_mp" pkg="ur5_notebook" type="ur5_mp_for_loading.py" output="screen" />
+<node name="ur5_gripper" pkg="ur5_notebook" type="ur5_gripper.py" output="screen"/>  
+</group>
+
+<group ns="arm2">
+<node name="ur5_vision" pkg="ur5_notebook" type="ur5_vision_for_offloading.py" output="screen" /> 
+<node name="ur5_mp" pkg="ur5_notebook" type="ur5_mp_for_offloading.py" output="screen" /> 
+<node name="ur5_gripper" pkg="ur5_notebook" type="ur5_gripper.py" output="screen"/> 
+</group>
+
+<group ns="arm3">
+<node name="ur5_vision" pkg="ur5_notebook" type="ur5_vision_for_offloading.py" output="screen" /> 
+<node name="ur5_mp" pkg="ur5_notebook" type="ur5_mp_for_offloading.py" output="screen" /> 
+<node name="ur5_gripper" pkg="ur5_notebook" type="ur5_gripper.py" output="screen"/> 
+</group>
+
+<group ns="arm4">
+<node name="ur5_vision" pkg="ur5_notebook" type="ur5_vision_for_offloading.py" output="screen" /> 
+<node name="ur5_mp" pkg="ur5_notebook" type="ur5_mp_for_offloading.py" output="screen" /> 
+<node name="ur5_gripper" pkg="ur5_notebook" type="ur5_gripper.py" output="screen"/> 
+</group>
+
+<group ns="arm5">
+<node name="ur5_vision" pkg="ur5_notebook" type="ur5_vision_for_offloading.py" output="screen" /> 
+<node name="ur5_mp" pkg="ur5_notebook" type="ur5_mp_for_offloading.py" output="screen" /> 
+<node name="ur5_gripper" pkg="ur5_notebook" type="ur5_gripper.py" output="screen"/> 
+</group>
+
+
+</launch>

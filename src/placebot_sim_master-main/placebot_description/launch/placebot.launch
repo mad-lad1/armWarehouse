@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<!--
+
+Launch nodes used by both RViz and Gazebo when visualizing placebot.
+
+-->
+
+<launch>
+	<arg name="robot_ns" default="robot1"/>
+	
+	<param name="tf_prefix" value="$(arg robot_ns)"/>
+	
+	<!-- robot_description is used by nodes that publish to joint_states. -->
+	<param name="robot_description"
+		   command="$(find xacro)/xacro --inorder $(find placebot_description)/urdf/placebot.urdf"/>
+
+	<!-- Read joint positions from joint_states, then publish the vehicle's state to tf. -->
+	<node name="vehicle_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+		<param name="publish_frequency" value="30.0"/>
+	</node>
+
+	<!-- <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" /> -->
+	<!-- launch rviz -->
+	<!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find placebot_description)/rviz/rvizConfig.rviz"/> -->
+  
+	
+
+</launch>

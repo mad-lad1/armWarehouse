@@ -1,0 +1,7 @@
+<launch>
+
+<group ns="placebot1">
+<node pkg="placebot_gazebo" type="move_base_demo_to_loading.py" name="move_base_demo"/>
+</group>
+
+</launch>

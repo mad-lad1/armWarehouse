@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="red_box_path" type="str" value="$(find ur5_notebook)/urdf/red_box.urdf"/>
+
+  <arg name="limited" default="true"/>
+  <arg name="paused" default="false"/>
+  <arg name="gui" default="true"/>
+  <arg name="debug" default="false" />
+  <arg name="sim" default="true" />
+
+  <arg name="namespace" default="/"/>
+	<arg name="namespace1" default="robot1"/>
+	<arg name="namespace2" default="robot2"/>
+  <arg name="cmd_timeout" default="2.0"/>
+
+
+
+  	<!-- Robot 1 pose -->
+	<arg name="x1" default="-5.23971"/>
+	<arg name="y1" default="9.342"/>
+	<arg name="z1" default="0.0"/>
+	<arg name="roll1" default="0.0"/>
+	<arg name="pitch1" default="0.0"/>
+	<arg name="yaw1" default="0.0"/>
+
+
+  <!-- startup simulated world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" default="$(find aws_robomaker_small_warehouse_world)/worlds/no_roof_small_warehouse.world"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="gui" value="$(arg gui)"/>
+  </include>
+
+  <!-- spwan ur5 -->
+  <!-- send robot urdf to param server -->
+  <include file="$(find ur_description)/launch/ur5_upload.launch">
+    <arg name="limited" value="$(arg limited)"/>
+  </include>
+
+  <!-- push robot_description to factory and spawn robot in gazebo -->
+  <node name="spawn_gazebo_model" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -model robot -x 9.45 -z 0.2 -y 20.381700 -Y 1.5708" respawn="false" output="screen" />
+
+  <include file="$(find ur_gazebo)/launch/controller_utils.launch"/>
+
+  <rosparam file="$(find ur_gazebo)/controller/arm_controller_ur5.yaml" command="load"/>
+  <node name="arm_controller_spawner" pkg="controller_manager" type="controller_manager" args="spawn arm_controller" respawn="false" output="screen"/>
+
+  <!-- Remap follow_joint_trajectory -->
+  <remap if="$(arg sim)" from="/follow_joint_trajectory" to="/arm_controller/follow_joint_trajectory"/>
+
+  <!-- Launch moveit -->
+  <include file="$(find ur5_moveit_config)/launch/move_group.launch">
+    <arg name="limited" default="$(arg limited)"/>
+    <arg name="debug" default="$(arg debug)" />
+  </include>
+
+  <!-- spawn the conveyor_belt in gazebo -->
+  <node name="spawn_conveyor_belt" pkg="gazebo_ros" type="spawn_model" args="-file $(find ur5_notebook)/urdf/conveyor_belt.urdf -urdf -model conveyor_belt -x 10.3041 -y 20.9908  -Y 1.5708"/>
+  <!-- spawn the conveyor_belt in gazebo -->
+  <node name="bin" pkg="gazebo_ros" type="spawn_model" args="-file $(find ur5_notebook)/urdf/bin.urdf -urdf -model bin -y 0.8 -x -0.5 -z 0.05" />
+  <!-- the red blocks spawner node -->
+  <node name="blocks_spawner" pkg="ur5_notebook" type="blocks_spawner" output="screen" />
+
+  <!-- the cylinder poses publisher node -->
+  <node name="blocks_poses_publisher" pkg="ur5_notebook" type="blocks_poses_publisher" output="screen" />
+
+  <!-- the cylinder poses publisher node -->
+  <node name="ur5_vision" pkg="ur5_notebook" type="ur5_vision.py" output="screen" />
+  <node name="ur5_mp" pkg="ur5_notebook" type="ur5_mp.py" output="screen" />
+  <node name="ur5_gripper" pkg="ur5_notebook" type="ur5_gripper.py" output="screen"/>
+  <!-- for ros control to be used with scara robot -->
+<!--   <param name="/scara_robot_left/robot_description" textfile="$(find two_scara_collaboration)/urdf/scara_robot_left.urdf" /> -->
+
+<!-- spawn the red_box in gazebo -->
+<!-- node name="spawn_red_box" pkg="gazebo_ros" type="spawn_model" args="-file $(find ur5_notebook)/urdf/red_box.urdf -urdf -model red_box"/ -->
+
+ <group ns="$(arg namespace1)">
+		<!-- Launch placebot -->
+		<include file="$(find placebot_description)/launch/placebot.launch">
+			<!-- <arg name="namespace" value=""/> -->
+		</include>
+	
+		<!-- Spawn the vehicle. -->
+		<node name="spawn_vehicle" pkg="gazebo_ros" type="spawn_model"
+			  args="-urdf -param robot_description -model robot1
+				    -gazebo_namespace /$(arg namespace)/gazebo
+				    -x $(arg x1) -y $(arg y1) -z $(arg z1)
+				    -R $(arg roll1) -P $(arg pitch1) -Y $(arg yaw1)"/>
+
+		<!-- Load the joint controllers. One of these publishes the joint states to joint_states. -->
+		<node name="controller_spawner" pkg="controller_manager" type="spawner"
+			  args="$(find placebot_gazebo)/config/placebot_joints_ctrlr_params.yaml"/>
+
+		<!-- Launch base controller node; controls the steering and axle joints. -->
+		<node name="placebot_controller" pkg="placebot_gazebo" type="placebot_controller">
+			<param name="cmd_timeout" value="$(arg cmd_timeout)"/>
+			<rosparam file="$(find placebot_gazebo)/config/placebot_ctrlr_params.yaml" command="load"/>
+		</node>
+
+		<!-- Launch odometry publisher node -->
+		<node name="odom_publisher" pkg="placebot_gazebo" type="gazebo_odom_publisher" />
+	</group>
+
+
+
+</launch>

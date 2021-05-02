@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+
+<launch>
+	<arg name="robot_name" default="robot1"/>
+	
+	<group ns="$(arg robot_name)">
+		<node pkg="gmapping" type="slam_gmapping" name="gmapping">
+		    <param name="base_frame" value="base_footprint"/>
+		    <param name="odom_frame" value="odom" />
+		    <param name="inverted_laser" value="false" />
+			<param name="maxUrange" value="15.0"/>
+			<param name="xmin" value="-20.0"/>
+			<param name="ymin" value="-20.0"/>
+			<param name="xmax" value="20.0"/>
+			<param name="ymax" value="20.0"/>
+		    <param name="delta" value="0.025" />
+		    <param name="minimumScore" value="80" />
+			<param name="linearUpdate" value="0.05"/>
+			<param name="angularUpdate" value="0.05"/>
+			<param name="temporalUpdate" value="0.05"/>
+			<param name="maxRange" value="20.0"/>
+		</node>
+	</group>
+</launch>
+

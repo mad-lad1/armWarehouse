@@ -1,0 +1,11 @@
+global_costmap:
+  global_frame: "world"
+  update_frequency: 2
+  publish_frequency: 2
+  transform_tolerance: 0.5
+  static_map: true
+  origin_x: -50
+  origin_y: -50
+#  rolling_window: false
+  inflation_radius: 0.3
+  resolution: 0.1

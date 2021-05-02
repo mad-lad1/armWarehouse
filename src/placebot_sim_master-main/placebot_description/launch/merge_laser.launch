@@ -1,0 +1,28 @@
+<launch>
+
+
+	<!-- This node merges the laser data coming from the two Lidar sensors resulting in 360 degrees coverage -->
+	<node pkg="ira_laser_tools" name="laserscan_multi_merger1" type="laserscan_multi_merger" output="screen">
+		<param name="destination_frame" value="placebot1/laser_frame"/>
+		<param name="cloud_destination_topic" value="placebot1/merged_cloud"/>
+		<param name="scan_destination_topic" value="placebot1/scan"/>
+		<param name="laserscan_topics" value ="/placebot1/front_laser/scan /placebot1/rear_laser/scan" />
+	</node> 
+	
+	<!-- publish transform from laser_frame to base_link -->
+	<node pkg="tf2_ros" type="static_transform_publisher" name="laser_broadcaster1" args="0 0 0.09 0 0 0 placebot1/base_link placebot1/laser_frame" />
+
+    <!-- This node merges the laser data coming from the two Lidar sensors resulting in 360 degrees coverage -->
+<!--	<node pkg="ira_laser_tools" name="laserscan_multi_merger2" type="laserscan_multi_merger" output="screen">
+		<param name="destination_frame" value="placebot2/laser_frame"/>
+		<param name="cloud_destination_topic" value="placebot2/merged_cloud"/>
+		<param name="scan_destination_topic" value="placebot2/scan"/>
+		<param name="laserscan_topics" value ="/placebot2/front_laser/scan /placebot2/rear_laser/scan" />
+	</node>
+	publish transform from laser_frame to base_link 
+	
+	<node pkg="tf2_ros" type="static_transform_publisher" name="laser_broadcaster2" args="0 0 0.09 0 0 0 placebot2/base_link placebot2/laser_frame" />
+-->
+
+
+</launch>
