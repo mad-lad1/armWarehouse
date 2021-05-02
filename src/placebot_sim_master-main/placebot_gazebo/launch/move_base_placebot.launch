@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<launch>
+	<arg name="robot_name" default="placebot1"/>
+	
+    <!-- Map Server; uncomment if the map is not published yet, otherwise map_server only need to be launched once -->
+    <group ns="$(arg robot_name)">
+		<node pkg="map_server" type="map_server" name="map_server" args="$(find placebot_gazebo)/maps/FROM.yaml">
+            <param name="frame_id" value="$(arg robot_name)/world"/>
+        </node> 
+	</group>
+		<!-- use either amcl or a static tf publisher to publish transform from odom to map -->
+		<include file="$(find placebot_gazebo)/launch/amcl_diff.launch">
+           <arg name="robot_name" value="$(arg robot_name)"/> 
+        </include> 
+
+	<group ns="$(arg robot_name)">
+		<node pkg="move_base" type="move_base" name="move_base" output="screen">
+		    <param name="controller_frequency" value="4"/>
+		    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
+		    <rosparam file="$(find placebot_gazebo)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+		    <rosparam file="$(find placebot_gazebo)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+		    <rosparam file="$(find placebot_gazebo)/config/local_costmap_params.yaml" command="load" />
+		    <rosparam file="$(find placebot_gazebo)/config/global_costmap_params.yaml" command="load" />
+		    <rosparam file="$(find placebot_gazebo)/config/trajectory_planner.yaml" command="load" />
+		</node>
+	</group>
+</launch>
+

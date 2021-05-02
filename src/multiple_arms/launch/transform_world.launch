@@ -1,0 +1,31 @@
+<launch>
+
+<group ns="arm1">
+<node name="unified_world" pkg="ur5_notebook" type="world_transform.py" output="screen" /> 
+</group>
+
+
+<group ns="arm2">
+<node name="unified_world" pkg="ur5_notebook" type="world_transform.py" output="screen" /> 
+</group>
+
+<group ns="arm3">
+<node name="unified_world" pkg="ur5_notebook" type="world_transform.py" output="screen" /> 
+</group>
+
+<group ns="arm4">
+<node name="unified_world" pkg="ur5_notebook" type="world_transform.py" output="screen" /> 
+</group>
+
+<group ns="arm5">
+<node name="unified_world" pkg="ur5_notebook" type="world_transform.py" output="screen" /> 
+</group>
+
+<group ns="placebot1">
+<node name="unified_world" pkg="ur5_notebook" type="world_transform.py" output="screen" /> 
+</group>
+
+
+
+
+</launch>

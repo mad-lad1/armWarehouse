@@ -1,0 +1,462 @@
+#!/usr/bin/env python
+
+"""placebot_controller
+
+Control the wheels axles and steering actuators
+
+Subscribed Topics:
+    cmd_vel (geometry_msgs/Twist)
+        Velocity command. It contains the vehicle's desired linear and angular speed.
+
+Published Topics:
+    <left front steering controller name>/command (std_msgs/Float64)
+        Command for the left front steering controller.
+    <right front steering controller name>/command (std_msgs/Float64)
+        Command for the right front steering controller.
+    <left rear steering controller name>/command (std_msgs/Float64)
+        Command for the left rear steering controller.
+    <right rear steering controller name>/command (std_msgs/Float64)
+        Command for the right rear steering controller.
+    <left front axle controller name>/command (std_msgs/Float64)
+        Command for the left front axle controller.
+    <right front axle controller name>/command (std_msgs/Float64)
+        Command for the right front axle controller.
+    <left rear axle controller name>/command (std_msgs/Float64)
+        Command for the left rear axle controller.
+    <right rear axle controller name>/command (std_msgs/Float64)
+        Command for the right rear axle controller.
+
+Services Called:
+    controller_manager/list_controllers (controller_manager_msgs/ListControllers)
+        List the states of the controllers.
+
+Parameters:
+    ~left_front_wheel/steering_link_name (string, default: left_front_steering_link)
+    ~right_front_wheel/steering_link_name (string, default: right_front_steering_link)
+    ~left_rear_wheel/steering_link_name (string, default: left_rear_steering_link)
+    ~right_rear_wheel/steering_link_name (string, default: right_rear_steering_link)
+        Names of links that have origins coincident with the origins of the
+        left and right steering joints, respectively.
+
+    ~left_front_wheel/steering_controller_name (string, default: left_front_steering_controller)
+    ~right_front_wheel/steering_controller_name (string, default: right_front_steering_controller)
+    ~left_rear_wheel/steering_controller_name (string, default: left_rear_steering_controller)
+    ~right_rear_wheel/steering_controller_name (string, default: right_rear_steering_controller)
+        Steering controller names.
+
+    ~left_rear_wheel/link_name (string, default: left_rear_wheel)
+    ~right_rear_wheel/link_name (string, default: right_rear_wheel)
+        Names of links that have origins coincident with the centers of the
+        left and right wheels, respectively. The rear wheel links are used to
+        compute the vehicle's wheelbase.
+
+    ~left_front_wheel/axle_controller_name (string)
+    ~right_front_wheel/axle_controller_name
+    ~left_rear_wheel/axle_controller_name
+    ~right_rear_wheel/axle_controller_name
+        Axle controller names. If no controller name is specified for an axle,
+        that axle will not have a controller. This allows the control of
+        front-wheel, rear-wheel, and four-wheel drive vehicles.
+
+    ~left_front_wheel/diameter (double, default: 0.9)
+    ~right_front_wheel/diameter
+    ~left_rear_wheel/diameter
+    ~right_rear_wheel/diameter
+        Wheel diameters. Each diameter must be greater than zero. Unit: meter.
+
+    ~cmd_timeout (double, default: 0.5)
+        If ~cmd_timeout is greater than zero and this node does not receive a
+        command for more than ~cmd_timeout seconds, vehicle motion is paused
+        until a command is received. If ~cmd_timeout is less than or equal to
+        zero, the command timeout is disabled.
+    ~publishing_frequency (double, default: 30.0)
+        Joint command publishing frequency. It must be greater than zero.
+        unit [hertz]
+
+Required tf Transforms:
+    <~left_front_wheel/steering_link_name> to <~right_rear_wheel/link_name>
+        Specifies the position of the left front wheel's steering link in the
+        right rear wheel's frame.
+    <~right_front_wheel/steering_link_name> to <~right_rear_wheel/link_name>
+        Specifies the position of the right front wheel's steering link in the
+        right rear wheel's frame.
+    <~left_rear_wheel/link_name> to <~right_rear_wheel/link_name>
+        Specifies the position of the left rear wheel in the right rear
+        wheel's frame.
+
+"""
+
+import math
+import numpy
+import threading
+
+from math import pi
+
+import rospy
+import tf
+
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Float64
+from controller_manager_msgs.srv import ListControllers
+
+
+class _PlacebotCtrlr(object):
+	"""Placebot controller
+
+	An object of class _PlacebotCtrlr is a node that controls the wheels of placebot.
+	"""
+
+	_DEF_CMD_TIMEOUT = 0.5  # Default command timeout. Unit: second.
+	_DEF_PUB_FREQ = 10.0  # Default publishing frequency. Unit: hertz.
+	
+	def __init__(self):
+		"""Initialize this _PlacebotCtrlr."""
+
+		rospy.init_node("placebot_controller")
+		
+		# namespace of this node is used to name the placebot model instance in gazebo
+		self.ns = rospy.get_namespace()
+	
+		# Parameters:
+
+		# Drive mode: 0 for differential drive, 1 for omni drive, 2 for ackermann steering control
+		self.driveMode = 1
+
+		# Wheels
+		(left_front_link_name, left_front_steer_ctrlr_name,
+		 left_front_axle_ctrlr_name) = \
+			self._get_front_wheel_params("left")
+		
+		(right_front_link_name, right_front_steer_ctrlr_name,
+		 right_front_axle_ctrlr_name) = \
+			self._get_front_wheel_params("right")
+		
+		(left_rear_link_name, left_rear_steer_ctrlr_name,
+		 left_rear_axle_ctrlr_name) = \
+			self._get_rear_wheel_params("left")
+
+		(self._right_rear_link_name, right_rear_steer_ctrlr_name,
+		 right_rear_axle_ctrlr_name) = \
+			self._get_rear_wheel_params("right")
+
+		list_ctrlrs = rospy.ServiceProxy("controller_manager/list_controllers",
+				                         ListControllers)
+		list_ctrlrs.wait_for_service()
+		
+		rospy.logwarn("list_ctrls service is now ready!")
+		
+		# Command timeout
+		try:
+			self._cmd_timeout = float(rospy.get_param("~cmd_timeout", self._DEF_CMD_TIMEOUT))
+		except rospy.ROSException:
+			rospy.logwarn("The specified command timeout value is invalid. "
+				          "The default timeout value will be used instead.")
+			self._cmd_timeout = self._DEF_CMD_TIMEOUT
+
+		# Publishing frequency
+		try:
+			pub_freq = float(rospy.get_param("~publishing_frequency", self._DEF_PUB_FREQ))
+			if pub_freq <= 0.0:
+				raise ValueError()
+		except rospy.ROSException:
+			rospy.logwarn("The specified publishing frequency is invalid. "
+				          "The default frequency will be used instead.")
+			pub_freq = self._DEF_PUB_FREQ
+		self._sleep_timer = rospy.Rate(pub_freq)
+
+		# _last_cmd_time is the time at which the most recent cmd_vel command was received.
+		self._last_cmd_time = rospy.get_time()
+
+		# _placebot_cmd_lock is used to control access to _lin_vel and _ang_vel
+		self._placebot_cmd_lock = threading.Lock()
+		self._ang_vel = 0.0
+		self._lin_vel_x = 0.0
+		self._lin_vel_y = 0.0
+
+		self._front_left_theta = 0.0  # Front left steering joint angle
+		self._front_right_theta = 0.0  # Front right steering joint angle
+		self._rear_left_theta = 0.0  # Rear left steering joint angle
+		self._rear_right_theta = 0.0  # Rear right steering joint angle
+
+		# Wheel angle for robot to rotate around its central axis
+		self._in_place_rot_theta = math.atan(0.7 / 0.44)
+		# max wheel speed is 0.9 m/sec
+		# robot_radius = math.sqrt(0.35**2 + 0.22**2) = 0.4134 m
+		# max in place rotation speed for robot is 0.9/0.1434 = 2.17 rad/sec
+		self._in_place_omega_factor = math.sqrt(0.35**2 + 0.22**2) / 0.09
+
+		self._last_front_left_theta = 0.0
+		self._last_front_right_theta = 0.0
+		self._last_rear_left_theta = 0.0
+		self._last_rear_right_theta = 0.0
+
+		# Axle angular velocities
+		self._left_front_ang_vel = 0.0
+		self._right_front_ang_vel = 0.0
+		self._left_rear_ang_vel = 0.0
+		self._right_rear_ang_vel = 0.0
+
+		# _joint_dist_div_2 is the distance between left and right wheels, divided by two.
+		# _wheelbase is the distance between front and rear wheels
+		tfl = tf.TransformListener()
+		lfw_pos = self._get_link_pos(tfl, left_front_link_name)
+		rfw_pos = self._get_link_pos(tfl, right_front_link_name)
+		lrw_pos = self._get_link_pos(tfl, left_rear_link_name)
+		rrw_pos = numpy.array([0.0] * 3)
+		front_cent_pos = (lfw_pos + rfw_pos) / 2  # Front center position
+		rear_cent_pos = (lrw_pos + rrw_pos) / 2  # Rear center position
+		self._joint_dist_div_2 = numpy.linalg.norm(lrw_pos - rrw_pos) / 2
+		self._wheelbase = numpy.linalg.norm(front_cent_pos - rear_cent_pos)
+		self._wheelbase_sqr = self._wheelbase ** 2
+		self._wheel_radius = 0.09
+
+		# Publishers and subscribers
+		# steering controllers commands
+		self._left_front_steer_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, left_front_steer_ctrlr_name)
+		self._right_front_steer_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, right_front_steer_ctrlr_name)
+		self._left_rear_steer_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, left_rear_steer_ctrlr_name)
+		self._right_rear_steer_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, right_rear_steer_ctrlr_name)
+		# axles controllers commands
+		self._left_front_axle_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, left_front_axle_ctrlr_name)
+		self._right_front_axle_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, right_front_axle_ctrlr_name)
+		self._left_rear_axle_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, left_rear_axle_ctrlr_name)
+		self._right_rear_axle_cmd_pub = \
+			self._create_cmd_pub(list_ctrlrs, right_rear_axle_ctrlr_name)
+		# cmd_vel command subscriber
+		self._placebot_cmd_sub = \
+			rospy.Subscriber("cmd_vel", Twist, self.placebot_cmd_cb, queue_size=1)
+			
+	def spin(self):
+		"""Control the vehicle."""
+
+		last_time = rospy.get_time()
+
+		while not rospy.is_shutdown():
+			t = rospy.get_time()
+			delta_t = t - last_time
+			last_time = t
+
+			if (t - self._last_cmd_time) > self._cmd_timeout > 0.0:
+			    # Too much time has elapsed since the last command. Stop the vehicle.
+			    self._ctrl_steering(0.0, 0.0, 0.0)
+			    self._ctrl_axles(0.0, 0.0, 0.0)
+			elif delta_t > 0.0:
+			    with self._placebot_cmd_lock:
+			        ang_vel = self._ang_vel
+			        lin_vel_x = self._lin_vel_x
+			        lin_vel_y = self._lin_vel_y
+			    self._ctrl_steering(lin_vel_x, lin_vel_y, ang_vel)
+			    self._ctrl_axles(lin_vel_x, lin_vel_y, ang_vel)
+
+			# Publish the steering and axle joint commands.
+			self._left_front_steer_cmd_pub.publish(self._front_left_theta)
+			self._right_front_steer_cmd_pub.publish(self._front_right_theta)
+			self._left_rear_steer_cmd_pub.publish(self._rear_left_theta)
+			self._right_rear_steer_cmd_pub.publish(self._rear_right_theta)
+
+			self._left_front_axle_cmd_pub.publish(self._left_front_ang_vel)
+			self._right_front_axle_cmd_pub.publish(self._right_front_ang_vel)
+			self._left_rear_axle_cmd_pub.publish(self._left_rear_ang_vel)
+			self._right_rear_axle_cmd_pub.publish(self._right_rear_ang_vel)
+
+			self._sleep_timer.sleep()
+			
+	def placebot_cmd_cb(self, cmd_vel):
+		"""Placebot driving command callback"""
+
+		self._last_cmd_time = rospy.get_time()
+		with self._placebot_cmd_lock:
+			self._ang_vel = cmd_vel.angular.z
+			self._lin_vel_x = cmd_vel.linear.x
+			self._lin_vel_y = cmd_vel.linear.y
+
+	def _get_link_pos(self, tfl, link):
+		# Return the position of the specified link, relative to the right
+		# rear wheel link.
+
+		while True:
+			try:
+				trans, not_used = tfl.lookupTransform(self._right_rear_link_name, link, rospy.Time(0))
+				return numpy.array(trans)
+			except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+				pass
+
+	def _ctrl_steering(self, lin_vel_x, lin_vel_y, ang_vel):
+		# Control the steering joints; calculates the steering angle for every wheel
+		
+		if lin_vel_x == 0 and lin_vel_y == 0 and ang_vel != 0:
+			self._front_left_theta = -self._in_place_rot_theta
+			self._front_right_theta = self._in_place_rot_theta
+			self._rear_left_theta = self._in_place_rot_theta
+			self._rear_right_theta = -self._in_place_rot_theta	
+			
+		# if in holonomic drive mode
+		elif self.driveMode == 1:
+			if lin_vel_x == 0.0:
+				if lin_vel_y > 0.0:
+				    theta = pi / 2
+				elif lin_vel_y < 0.0:
+				    theta = -pi / 2
+				else:
+				    theta = 0.0
+			else:
+				theta = math.atan(lin_vel_y / lin_vel_x)
+			self._front_left_theta = theta
+			self._front_right_theta = theta
+			self._rear_left_theta = theta
+			self._rear_right_theta = theta
+
+		# if in ackermann steering mode
+		else:
+			self._rear_left_theta = 0.0
+			self._rear_right_theta = 0.0
+			if lin_vel_x == 0.0:
+				self._front_left_theta = self._last_front_left_theta
+				self._front_right_theta = self._last_front_right_theta
+
+			elif ang_vel == 0.0:
+				self._front_left_theta = 0.0
+				self._front_right_theta = 0.0
+
+			else:
+				center_r = lin_vel_x / ang_vel
+				self._front_left_theta = _get_steer_ang(
+				    math.atan((center_r - self._joint_dist_div_2) / self._wheelbase))
+				self._front_right_theta = _get_steer_ang(
+				    math.atan((center_r + self._joint_dist_div_2) / self._wheelbase))
+			self._last_front_left_theta = self._front_left_theta
+			self._last_front_right_theta = self._front_right_theta
+
+	def _ctrl_axles(self, lin_vel_x, lin_vel_y, ang_vel):
+		# Control the axle joints.
+
+		if lin_vel_x == 0 and lin_vel_y == 0 and ang_vel != 0:
+			wheel_ang_vel = self._in_place_omega_factor * ang_vel
+			self._left_front_ang_vel = -wheel_ang_vel
+			self._right_front_ang_vel = wheel_ang_vel
+			self._left_rear_ang_vel = -wheel_ang_vel
+			self._right_rear_ang_vel = wheel_ang_vel
+			
+		# if in holonomic drive mode
+		elif self.driveMode == 1:
+			speed = math.sqrt(lin_vel_x ** 2 + lin_vel_y ** 2)
+
+			if lin_vel_x < 0.0:
+				wheel_ang_vel = -speed / self._wheel_radius
+			elif lin_vel_x > 0.0:
+				wheel_ang_vel = speed / self._wheel_radius
+			else:
+				wheel_ang_vel = abs(lin_vel_y / self._wheel_radius)
+			
+			# rospy.logwarn("wheel_ang_vel")
+			# rospy.logwarn(wheel_ang_vel)
+			
+			self._left_front_ang_vel = wheel_ang_vel
+			self._right_front_ang_vel = wheel_ang_vel
+			self._left_rear_ang_vel = wheel_ang_vel
+			self._right_rear_ang_vel = wheel_ang_vel
+
+		# if in ackermann steering mode
+		else:
+			if lin_vel_x == 0.0:
+				self._left_front_ang_vel = 0.0
+				self._right_front_ang_vel = 0.0
+				self._left_rear_ang_vel = 0.0
+				self._right_rear_ang_vel = 0.0
+
+			elif ang_vel == 0.0:
+				wheel_ang_vel = lin_vel_x / self._wheel_radius
+				self._left_front_ang_vel = wheel_ang_vel
+				self._right_front_ang_vel = wheel_ang_vel
+				self._left_rear_ang_vel = wheel_ang_vel
+				self._right_rear_ang_vel = wheel_ang_vel
+
+			# Compute the desired angular velocities of the wheels.
+			else:
+				# r is the distance from each wheel to the center of the curve followed by vehicle
+				center_r = lin_vel_x / ang_vel
+				left_rear_r = center_r - self._joint_dist_div_2
+				right_rear_r = center_r + self._joint_dist_div_2
+				left_front_r = math.sqrt(left_rear_r ** 2 + self._wheelbase_sqr)
+				right_front_r = math.sqrt(right_rear_r ** 2 + self._wheelbase_sqr)
+
+				# base speed of a wheel [rad/sec]
+				wheel_ang_vel = lin_vel_x / self._wheel_radius
+
+				# Front
+				self._left_front_ang_vel = wheel_ang_vel * left_front_r / abs(center_r)
+				self._right_front_ang_vel = wheel_ang_vel * right_front_r / abs(center_r)
+
+				# Rear
+				self._left_rear_ang_vel = wheel_ang_vel * left_rear_r / center_r
+				self._right_rear_ang_vel = wheel_ang_vel * right_rear_r / center_r
+
+	#@staticmethod
+	def _get_front_wheel_params(self, side):
+		# Get front wheel parameters. Return a tuple containing the steering
+		# link name, steering controller name, axle controller name (or None),
+		# and inverse of the circumference.
+
+		prefix = self.ns + side + "_front_wheel/"
+		link_name = self.ns + rospy.get_param(prefix + "link_name", side + "_front_link_def")
+		steer_ctrlr_name = rospy.get_param(prefix + "steering_controller_name", side + "_front_steering_controller")
+		axle_ctrlr_name = rospy.get_param(prefix + "axle_controller_name", side + "_front_axle_controller")
+		return link_name, steer_ctrlr_name, axle_ctrlr_name
+
+	#@staticmethod
+	def _get_rear_wheel_params(self, side):
+		# Get rear wheel parameters. Return a tuple containing the link name,
+		# axle controller name, and inverse of the circumference.
+
+		prefix = self.ns + side + "_rear_wheel/"
+		link_name = self.ns + rospy.get_param(prefix + "link_name", side + "_rear_wheel")
+		steer_ctrlr_name = rospy.get_param(prefix + "steering_controller_name", side + "_rear_steering_controller")
+		axle_ctrlr_name = rospy.get_param(prefix + "axle_controller_name", side + "_rear_axle_controller")
+		return link_name, steer_ctrlr_name, axle_ctrlr_name
+
+	def _create_cmd_pub(self, list_ctrlrs, ctrlr_name):
+		# Create a command publisher.
+		_wait_for_ctrlr(list_ctrlrs, ctrlr_name)
+		return rospy.Publisher(self.ns + ctrlr_name + "/command", Float64, queue_size=1)
+
+# end _PlacebotCtrlr
+
+
+def _wait_for_ctrlr(list_ctrlrs, ctrlr_name):
+	# Wait for the specified controller to be in the "running" state.
+	# Commands can be lost if they are published before their controller is
+	# running, even if a latched publisher is used.
+	i = 0
+	while i < 5:
+	    response = list_ctrlrs()
+	    #num = len(response)
+	    for ctrler in response.controller:
+	        #rospy.logwarn(ctrler.name)
+	        #rospy.logwarn(ctrlr_name)
+	        if ctrler.name == ctrlr_name:
+	        	if ctrler.state == "running":
+	        		return
+	        	rospy.sleep(0.1)
+	        	break
+		i = i + 1
+	rospy.logwarn("controller names do not match!!!")
+
+
+def _get_steer_ang(phi):
+    # Return the desired steering angle for a front wheel.
+    if phi >= 0.0:
+        return (pi / 2) - phi
+    return (-pi / 2) - phi
+
+
+# main
+if __name__ == "__main__":
+    ctrlr = _PlacebotCtrlr()
+    ctrlr.spin()

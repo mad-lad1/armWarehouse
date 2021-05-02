@@ -1,0 +1,73 @@
+<launch>
+  <param name="/use_sim_time" value="true" />
+  <arg name="robot_name"/>
+  <arg name="init_pose"/>
+  <arg name= "limited" default= "false"/>
+  <arg name="paused" default="false" doc="Starts gazebo in paused mode" />
+  <arg name="transmission_hw_interface" default="hardware_interface/PositionJointInterface" />
+  <arg name="gui" default="true" doc="Starts gazebo gui" />
+  <param unless="$(arg limited)" name="robot_description" command="$(find xacro)/xacro --inorder '$(find ur_description)/urdf/ur5_robot.urdf.xacro' transmission_hw_interface:=$(arg transmission_hw_interface)" />
+  <param if="$(arg limited)" name="robot_description" command="$(find xacro)/xacro --inorder '$(find ur_description)/urdf/ur5_joint_limited_robot.urdf.xacro' transmission_hw_interface:=$(arg transmission_hw_interface)" />
+  <param name="red_box_path" type="str" value="$(find ur5_notebook)/urdf/red_box.urdf"/>  
+  <arg name="sim" default="true"/>
+  <arg name="debug" default ="false"/>  
+
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" default="$(find aws_robomaker_small_warehouse_world)/worlds/VRL_warehouse.world"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="gui" value="$(arg gui)"/>
+  </include>
+
+  <group ns="arm1">
+    <param name="tf_prefix" value="arm1" />
+      <include file="$(find ur_gazebo)/launch/ur5.launch">
+        <arg name="init_pose" value="-x 0 -y 0.7 -z 0.2"/>
+        <arg name="robot_name" value="arm1"/>
+      </include>
+    </group>
+
+  <group ns="arm2">
+    <param name="tf_prefix" value="arm2" />
+      <include file="$(find ur_gazebo)/launch/ur5.launch">
+        <arg name="init_pose" value="-x 4.004342 -y 10.018601 -z 0.2"/>
+        <arg name="robot_name" value="arm2"/>
+      </include>
+    </group>
+
+    <group ns="arm3">
+    <param name="tf_prefix" value="arm3" />
+      <include file="$(find ur_gazebo)/launch/ur5.launch">
+        <arg name="init_pose" value="-x -4.004342 -y 10.018601 -z 0.2"/>
+        <arg name="robot_name" value="arm3"/>
+      </include>
+    </group>  
+
+    <group ns="arm4">
+    <param name="tf_prefix" value="arm4" />
+      <include file="$(find ur_gazebo)/launch/ur5.launch">
+        <arg name="init_pose" value="-x -4.004342 -y -6.005409 -z 0.2 -Y 3.141592653589793238462"/>
+        <arg name="robot_name" value="arm4"/>
+      </include>
+    </group>  
+
+    <group ns="arm5">
+    <param name="tf_prefix" value="arm5" />
+      <include file="$(find ur_gazebo)/launch/ur5.launch">
+        <arg name="init_pose" value="-x 4.004342 -y -6.005409 -z 0.2 -Y 3.141592653589793238462"/>
+        <arg name="robot_name" value="arm5"/>
+      </include>
+    </group>
+
+    <include file="$(find placebot_gazebo)/launch/placebot_gazebo.launch"/> 
+
+    <!-- spawn the conveyor_belt in gazebo -->
+    <node name="spawn_conveyor_belt" pkg="gazebo_ros" type="spawn_model" args="-file $(find ur5_notebook)/urdf/conveyor_belt.urdf -urdf -model conveyor_belt"/>
+    <!-- the red blocks spawner node -->
+    <node name="blocks_spawner" pkg="ur5_notebook" type="blocks_spawner" output="screen" />
+    <!-- the cylinder poses publisher node -->
+    <node name="blocks_poses_publisher" pkg="ur5_notebook" type="blocks_poses_publisher" output="screen" />
+
+
+
+</launch>

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+
+ <include file="$(find placebot_gazebo)/launch/move_base_placebot.launch">
+ <arg name="robot_name" value="placebot1"/>
+ </include>
+
+ <include file="$(find placebot_gazebo)/launch/move_base_placebot.launch">
+ <arg name="robot_name" value="placebot2"/>
+ </include> 
+
+
+</launch>

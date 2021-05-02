@@ -1,0 +1,65 @@
+<launch>
+    <arg name="sim" default="true"/>
+    <arg name="limited" default="false"/>
+    <arg name="debug" default ="false"/>
+    <group ns="arm1">
+    <!-- Remap follow_joint_trajectory -->
+    <remap if="$(arg sim)" from="/follow_joint_trajectory" to="arm_controller/follow_joint_trajectory"/>
+    
+    <!--Launch moveit -->
+    <include file="$(find ur5_moveit_config)/launch/move_group.launch">
+        <arg name="limited" default="$(arg limited)"/>
+        <arg name="debug" default="$(arg debug)" />
+    </include>  
+    
+    </group>
+
+    <group ns="arm2">
+    
+    <remap if="$(arg sim)" from="/follow_joint_trajectory" to="arm_controller/follow_joint_trajectory"/>
+
+    
+    <include file="$(find ur5_moveit_config)/launch/move_group.launch">
+        <arg name="limited" default="$(arg limited)"/>
+        <arg name="debug" default="$(arg debug)" />
+    </include>  
+    </group>
+
+    <group ns="arm3">
+    
+    <remap if="$(arg sim)" from="/follow_joint_trajectory" to="arm_controller/follow_joint_trajectory"/>
+
+    
+    <include file="$(find ur5_moveit_config)/launch/move_group.launch">
+        <arg name="limited" default="$(arg limited)"/>
+        <arg name="debug" default="$(arg debug)" />
+    </include>  
+    </group> 
+
+
+    <group ns="arm4">
+    
+    <remap if="$(arg sim)" from="/follow_joint_trajectory" to="arm_controller/follow_joint_trajectory"/>
+
+    
+    <include file="$(find ur5_moveit_config)/launch/move_group.launch">
+        <arg name="limited" default="$(arg limited)"/>
+        <arg name="debug" default="$(arg debug)" />
+    </include>  
+    </group> 
+
+    <group ns="arm5">
+    
+    <remap if="$(arg sim)" from="/follow_joint_trajectory" to="arm_controller/follow_joint_trajectory"/>
+
+    
+    <include file="$(find ur5_moveit_config)/launch/move_group.launch">
+        <arg name="limited" default="$(arg limited)"/>
+        <arg name="debug" default="$(arg debug)" />
+    </include>  
+    </group> 
+
+
+
+
+</launch>

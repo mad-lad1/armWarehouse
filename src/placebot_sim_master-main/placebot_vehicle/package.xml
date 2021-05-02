@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+	<name>placebot_vehicle</name>
+	<version>1.0.0</version>
+	<description>
+		Contains a group of packages for simulating placebot
+	</description>
+	<author email="ahm43@mail.aub.edu">Ali Mantash</author>
+	<maintainer email="ahm43@mail.aub.edu">Ali Mantash</maintainer>
+	<license>TODO</license>
+
+	<buildtool_depend>catkin</buildtool_depend>
+	<exec_depend>placebot_description</exec_depend>
+	<exec_depend>placebot_gazebo</exec_depend>
+
+</package>
